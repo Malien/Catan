@@ -3,6 +3,7 @@
 use std::marker::PhantomData;
 
 use enum_map::{Enum, EnumMap, MaybeUninit};
+use serde::Deserialize;
 
 pub struct Player(u8);
 
@@ -15,6 +16,8 @@ pub enum Resource {
     Ore,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Tile {
     Field,
     Pasture,
@@ -87,8 +90,7 @@ where
     _phantom: PhantomData<K>,
 }
 
-type EnumAdjacencyList<K, V> = EnumMap<K, Vec<V>>;
-
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 pub struct TileID(u8);
 pub struct ResourceTileID(u8);
 pub struct RoadID(u8);
@@ -123,8 +125,72 @@ pub struct DiceMarkerRelationships {
 }
 
 pub struct GameMap {
-    tile: TileRelationships,
-    road: RoadRelationships,
-    player: PlayerRelationships,
-    settle_place: SettlePlaceRelationships,
+    pub tile: TileRelationships,
+    pub road: RoadRelationships,
+    pub player: PlayerRelationships,
+    pub settle_place: SettlePlaceRelationships,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+struct TileMap<T> {
+    field: T,
+    pasture: T,
+    forest: T,
+    mesa: T,
+    mountains: T,
+    desert: T,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+struct Vec2(u8, u8);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+enum HexSide {
+    #[serde(rename = "nw")]
+    NorthWest,
+    #[serde(rename = "ne")]
+    NorthEast,
+    #[serde(rename = "w")]
+    West,
+    #[serde(rename = "e")]
+    East,
+    #[serde(rename = "sw")]
+    SouthWest,
+    #[serde(rename = "se")]
+    SouthEast,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum Harbour {
+    Wheat,
+    Sheep,
+    Wood,
+    Ore,
+    Brick,
+    Universal,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+struct HarbourPlacement {
+    position: Vec2,
+    side: HexSide,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MapConfig {
+    tile_bank: TileMap<u8>,
+    tile_count: u8,
+    map_size: Vec2,
+    tile_placement: Vec<Vec2>,
+    default_tiles: Vec<Tile>,
+    fixed_tiles: Option<TileMap<Vec<TileID>>>,
+    harbour_count: u8,
+    harbour_placement: Vec<HarbourPlacement>,
+    default_harbours: Vec<Harbour>,
+}
+
+// pub fn decode_config(config: MapConfig, players_count: u8) -> Result<GameMap, Box<dyn Error>> {
+
+// }
