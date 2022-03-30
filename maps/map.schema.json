@@ -1,0 +1,132 @@
+{
+    "type": "object",
+    "properties": {
+        "tileBank": {
+            "type": "object",
+            "properties": {
+                "field": {
+                    "$ref": "#/definitions/uint"
+                },
+                "pasture": {
+                    "$ref": "#/definitions/uint"
+                },
+                "forest": {
+                    "$ref": "#/definitions/uint"
+                },
+                "mesa": {
+                    "$ref": "#/definitions/uint"
+                },
+                "mountains": {
+                    "$ref": "#/definitions/uint"
+                },
+                "desert": {
+                    "$ref": "#/definitions/uint"
+                }
+            },
+            "required": ["field", "pasture", "forest", "mesa", "mountains", "desert"]
+        },
+        "tileCount": {
+            "type": "integer",
+            "minimum": 1
+        },
+        "mapSize": {
+            "type": "array",
+            "items": [{
+                    "type": "integer",
+                    "minimum": 1
+                },
+                {
+                    "type": "integer",
+                    "minimum": 1
+                }
+            ],
+            "maxItems": 2,
+            "minItems": 2
+        },
+        "tilePlacement": {
+            "type": "array",
+            "items": {
+                "$ref": "#/definitions/coord"
+            }
+        },
+        "defaultTiles": {
+            "type": "array",
+            "items": {
+                "type": "string",
+                "enum": ["mountain", "pasture", "forest", "field", "mesa", "desert"]
+            }
+        },
+        "fixedTiles": {
+            "type": "object",
+            "properties": {
+                "field": {
+                    "$ref": "#/definitions/fixedTile"
+                },
+                "pasture": {
+                    "$ref": "#/definitions/fixedTile"
+                },
+                "forest": {
+                    "$ref": "#/definitions/fixedTile"
+                },
+                "mesa": {
+                    "$ref": "#/definitions/fixedTile"
+                },
+                "mountains": {
+                    "$ref": "#/definitions/fixedTile"
+                },
+                "desert": {
+                    "$ref": "#/definitions/fixedTile"
+                }
+            },
+            "required": ["field", "pasture", "forest", "mesa", "mountains", "desert"]
+        },
+        "harbourCount": {
+            "$ref": "#/definitions/uint"
+        },
+        "harbourPlacement": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "position": {
+                        "$ref": "#/definitions/coord"
+                    },
+                    "side": {
+                        "type": "string",
+                        "enum": ["nw", "ne", "w", "e", "sw", "se"]
+                    }
+                }
+            }
+        },
+        "defaultHarbours": {
+            "type": "array",
+            "items": {
+                "type": "string",
+                "enum": ["universal", "wheat", "sheep", "wood", "ore", "brick"]
+            }
+        }
+    },
+    "required": ["tileBank", "tileCount", "mapSize", "tilePlacement", "defaultTiles", "harbourCount", "harbourPlacement", "defaultHarbours"],
+    "definitions": {
+        "fixedTile": {
+            "type": "array",
+            "items": {
+                "$ref": "#/definitions/uint"
+            }
+        },
+        "coord": {
+            "type": "array",
+            "items": [{
+                "$ref": "#/definitions/uint"
+            }, {
+                "$ref": "#/definitions/uint"
+            }],
+            "maxItems": 2,
+            "minItems": 2
+        },
+        "uint": {
+            "type": "integer",
+            "minimum": 0
+        }
+    }
+}
