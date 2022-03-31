@@ -1,136 +1,19 @@
 use std::{
     collections::{HashSet, VecDeque},
-    num::TryFromIntError,
     ops::{Index, IndexMut},
 };
 
-use enum_map::{enum_map, Enum, EnumMap};
+use enum_map::{enum_map, EnumMap};
 use serde::Deserialize;
 
 pub(crate) mod adjacency_list;
 use adjacency_list::*;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Player(u8);
-
-#[derive(Debug, Clone, Copy, Enum, PartialEq, Eq)]
-pub enum Resource {
-    Wheat,
-    Sheep,
-    Wood,
-    Brick,
-    Ore,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Tile {
-    Field,
-    Pasture,
-    Forest,
-    Mesa,
-    Mountains,
-    Desert,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SettlePlace {
-    Settlement(Player),
-    Town(Player),
-    Empty,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DiceMarker {
-    Two,
-    Three,
-    Four,
-    Five,
-    Six,
-    // Seven is for robbers
-    Eight,
-    Nine,
-    Ten,
-    Eleven,
-    Twelve,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PlayerHand {
-    resources: EnumMap<Resource, u8>,
-    settlements: u8,
-    towns: u8,
-    roads: u8,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Hash)]
-pub struct TileID(u8);
-
-impl From<TileID> for usize {
-    fn from(v: TileID) -> Self {
-        v.0 as usize
-    }
-}
-
-impl TryFrom<usize> for TileID {
-    type Error = TryFromIntError;
-
-    fn try_from(value: usize) -> Result<Self, Self::Error> {
-        value.try_into().map(TileID)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ResourceTileID(u8);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RoadID(u8);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SettlePlaceID(u16);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct DiceMarkerID(u8);
-
-#[derive(Debug, Default)]
-pub struct TileRelationships {
-    pub resource: SingleAdjacencyList<TileID, Tile>,
-    // pub roads: SizedAdjacencyList<TileID, RoadID, 6>,
-    pub settle_places: SingleAdjacencyList<TileID, EnumMap<HexVertex, SettlePlaceID>>,
-}
-
-#[derive(Debug, Default)]
-pub struct RoadRelationships {
-    pub settle_places: SizedAdjacencyList<RoadID, SettlePlaceID, 2>,
-}
-
-#[derive(Debug, Default)]
-pub struct PlayerRelationships {
-    pub placed_roads: HSparseAdjacencyList<Player, RoadID>,
-    pub towns: HSparseAdjacencyList<Player, SettlePlaceID>,
-    pub settlements: HSparseAdjacencyList<Player, SettlePlaceID>,
-    pub hand: SingleAdjacencyList<Player, PlayerHand>,
-}
-
-#[derive(Debug, Default)]
-pub struct SettlePlaceRelationships {
-    pub roads: CappedAdjacencyList<SettlePlaceID, RoadID, 3>,
-    // pub tiles: CappedAdjacencyList<TileID, 2, 3>
-}
-
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub struct DiceMarkerRelationships {
-    pub values: SingleAdjacencyList<DiceMarkerID, DiceMarker>,
-    pub place: SingleAdjacencyList<DiceMarkerID, ResourceTileID>,
-}
-
-#[derive(Debug, Default)]
-pub struct GameMap {
-    pub tile: TileRelationships,
-    pub road: RoadRelationships,
-    pub player: PlayerRelationships,
-    pub settle_place: SettlePlaceRelationships,
-}
+pub(crate) mod ids;
+use ids::*;
+pub(crate) mod types;
+use types::*;
+pub(crate) mod relations;
+use relations::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Default)]
 pub struct TileMap<T> {
@@ -146,49 +29,6 @@ pub struct TileMap<T> {
     pub mountains: T,
     #[serde(default)]
     pub desert: T,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Enum)]
-enum HexSide {
-    #[serde(rename = "nw")]
-    NorthWest,
-    #[serde(rename = "ne")]
-    NorthEast,
-    #[serde(rename = "w")]
-    West,
-    #[serde(rename = "e")]
-    East,
-    #[serde(rename = "sw")]
-    SouthWest,
-    #[serde(rename = "se")]
-    SouthEast,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Enum)]
-pub enum HexVertex {
-    North,
-    NorthWest,
-    NorthEast,
-    SouthWest,
-    SouthEast,
-    South,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "lowercase")]
-enum Harbour {
-    Wheat,
-    Sheep,
-    Wood,
-    Ore,
-    Brick,
-    Universal,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
-struct HarbourPlacement {
-    position: [u8; 2],
-    side: HexSide,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -207,23 +47,6 @@ pub struct MapConfig {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DecodeConfigError {
     InvalidPlayerCount(u8),
-}
-
-#[derive(Debug, Clone, Copy)]
-enum VisitStatus {
-    Processed(TileID),
-    NotVisited(TileID, [u8; 2]),
-    NotATile,
-}
-
-impl VisitStatus {
-    fn not_visited(self) -> Option<(TileID, [u8; 2])> {
-        if let Self::NotVisited(id, pos) = self {
-            Some((id, pos))
-        } else {
-            None
-        }
-    }
 }
 
 pub fn decode_config(config: MapConfig, player_count: u8) -> Result<GameMap, DecodeConfigError> {
@@ -249,6 +72,23 @@ pub fn decode_config(config: MapConfig, player_count: u8) -> Result<GameMap, Dec
     Ok(map)
 }
 
+#[derive(Debug, Clone, Copy)]
+enum VisitStatus {
+    Processed(TileID),
+    NotVisited(TileID, [u8; 2]),
+    NotATile,
+}
+
+impl VisitStatus {
+    fn not_visited(self) -> Option<(TileID, [u8; 2])> {
+        if let Self::NotVisited(id, pos) = self {
+            Some((id, pos))
+        } else {
+            None
+        }
+    }
+}
+
 fn traverse_tiles(
     map_size: [u8; 2],
     tile_placement: Vec<[u8; 2]>,
@@ -260,6 +100,7 @@ fn traverse_tiles(
     let mut processed_tiles = HashSet::new();
     let mut settle_places_count = 0;
     let mut tile_settle_places = SingleAdjacencyList::<_, EnumMap<_, _>>::new();
+
     while let Some((tile_id, pos)) = queue.pop_front() {
         let not_processed = processed_tiles.insert(tile_id);
         if !not_processed {
@@ -267,8 +108,8 @@ fn traverse_tiles(
         }
 
         let neighbor_status = neighbor_positions(pos).map(|_, pos| match map_2d[pos] {
-            Some(id) if processed_tiles.contains(&id) => Processed(id),
-            Some(id) => NotVisited(id, pos),
+            Some(tile_id) if processed_tiles.contains(&tile_id) => Processed(tile_id),
+            Some(tile_id) => NotVisited(tile_id, pos),
             None => NotATile,
         });
 
