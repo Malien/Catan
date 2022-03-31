@@ -8,7 +8,6 @@
         "mountains": 3,
         "desert": 1
     },
-    "tileCount": 19,
     "mapSize": [7, 7],
     "tilePlacement": [
         [2, 1],
@@ -52,15 +51,6 @@
         "field",
         "pasture"
     ],
-    "fixedTiles": {
-        "field": [],
-        "pasture": [],
-        "forest": [],
-        "mesa": [],
-        "mountains": [],
-        "desert": []
-    },
-    "harbourCount": 9,
     "harbourPlacement": [
         { "position": [1, 0], "side": "se" },
         { "position": [3, 0], "side": "sw" },

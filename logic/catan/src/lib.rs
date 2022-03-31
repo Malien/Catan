@@ -1,10 +1,13 @@
 #![feature(generic_const_exprs)]
+#![feature(array_from_fn)]
 
-use std::marker::PhantomData;
-
-use enum_map::{Enum, EnumMap, MaybeUninit};
+use enum_map::{Enum, EnumMap};
 use serde::Deserialize;
 
+pub(crate) mod adjacency_list;
+use adjacency_list::*;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Player(u8);
 
 #[derive(Debug, Clone, Copy, Enum, PartialEq, Eq)]
@@ -33,6 +36,7 @@ pub enum SettlePlace {
     Empty,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DiceMarker {
     Two,
     Three,
@@ -47,6 +51,7 @@ pub enum DiceMarker {
     Twelve,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PlayerHand {
     resources: EnumMap<Resource, u8>,
     settlements: u8,
@@ -54,76 +59,54 @@ pub struct PlayerHand {
     roads: u8,
 }
 
-pub struct SingleAdjacencyList<K, V> {
-    values: Vec<V>,
-    _phantom: PhantomData<K>,
-}
-
-pub struct HSparseAdjacencyList<K, V> {
-    values: Vec<Vec<V>>,
-    _phantom: PhantomData<K>,
-}
-
-// pub struct VSparse
-
-pub struct SizedAdjacencyList<K, V, const SIZE: usize> {
-    values: Vec<[V; SIZE]>,
-    _phantom: PhantomData<K>,
-}
-
-pub struct CappedRelationship<V, const MIN: u8, const MAX: u8>
-where
-    [(); MIN as usize]: ,
-    [(); { MAX - MIN } as usize]: ,
-{
-    size: u8,
-    min_values: [V; MIN as usize],
-    optional_values: [MaybeUninit<V>; { MAX - MIN } as usize],
-}
-
-pub struct CappedAdjacencyList<K, V, const MIN: u8, const MAX: u8>
-where
-    [(); MIN as usize]: ,
-    [(); { MAX - MIN } as usize]: ,
-{
-    values: Vec<CappedRelationship<V, MIN, MAX>>,
-    _phantom: PhantomData<K>,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 pub struct TileID(u8);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ResourceTileID(u8);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RoadID(u8);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SettlePlaceID(u8);
-type PlayerID = Player;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DiceMarkerID(u8);
 
+#[derive(Debug, Default)]
 pub struct TileRelationships {
     pub resource: SingleAdjacencyList<TileID, Tile>,
     // pub roads: SizedAdjacencyList<TileID, RoadID, 6>,
     pub settle_places: SizedAdjacencyList<TileID, SettlePlaceID, 6>,
 }
 
+#[derive(Debug, Default)]
 pub struct RoadRelationships {
     pub settle_places: SizedAdjacencyList<RoadID, SettlePlaceID, 2>,
 }
 
+#[derive(Debug, Default)]
 pub struct PlayerRelationships {
     pub placed_roads: HSparseAdjacencyList<Player, RoadID>,
     pub towns: HSparseAdjacencyList<Player, SettlePlaceID>,
     pub settlements: HSparseAdjacencyList<Player, SettlePlaceID>,
+    pub hand: SingleAdjacencyList<Player, PlayerHand>,
 }
 
+#[derive(Debug, Default)]
 pub struct SettlePlaceRelationships {
-    pub roads: CappedAdjacencyList<SettlePlaceID, RoadID, 2, 3>,
+    pub roads: CappedAdjacencyList<SettlePlaceID, RoadID, 3>,
     // pub tiles: CappedAdjacencyList<TileID, 2, 3>
 }
 
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct DiceMarkerRelationships {
     pub values: SingleAdjacencyList<DiceMarkerID, DiceMarker>,
     pub place: SingleAdjacencyList<DiceMarkerID, ResourceTileID>,
 }
 
+#[derive(Debug, Default)]
 pub struct GameMap {
     pub tile: TileRelationships,
     pub road: RoadRelationships,
@@ -131,14 +114,20 @@ pub struct GameMap {
     pub settle_place: SettlePlaceRelationships,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
-struct TileMap<T> {
-    field: T,
-    pasture: T,
-    forest: T,
-    mesa: T,
-    mountains: T,
-    desert: T,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Default)]
+pub struct TileMap<T> {
+    #[serde(default)]
+    pub field: T,
+    #[serde(default)]
+    pub pasture: T,
+    #[serde(default)]
+    pub forest: T,
+    #[serde(default)]
+    pub mesa: T,
+    #[serde(default)]
+    pub mountains: T,
+    #[serde(default)]
+    pub desert: T,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -181,16 +170,75 @@ struct HarbourPlacement {
 #[serde(rename_all = "camelCase")]
 pub struct MapConfig {
     tile_bank: TileMap<u8>,
-    tile_count: u8,
     map_size: Vec2,
     tile_placement: Vec<Vec2>,
     default_tiles: Vec<Tile>,
-    fixed_tiles: Option<TileMap<Vec<TileID>>>,
-    harbour_count: u8,
+    #[serde(default)]
+    fixed_tiles: TileMap<Vec<TileID>>,
     harbour_placement: Vec<HarbourPlacement>,
     default_harbours: Vec<Harbour>,
 }
 
-// pub fn decode_config(config: MapConfig, players_count: u8) -> Result<GameMap, Box<dyn Error>> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DecodeConfigError {
+    InvalidPlayerCount(u8),
+}
 
-// }
+pub fn decode_config(config: MapConfig, player_count: u8) -> Result<GameMap, DecodeConfigError> {
+    use DecodeConfigError::*;
+
+    if !(2..=4).contains(&player_count) {
+        return Err(InvalidPlayerCount(player_count));
+    }
+
+    let resource = SingleAdjacencyList::new(config.default_tiles);
+    let settle_places = SizedAdjacencyList::new(vec![]);
+
+    let tile = TileRelationships {
+        resource,
+        settle_places,
+    };
+
+    let map = GameMap {
+        tile,
+        ..Default::default()
+    };
+
+    Ok(map)
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{
+        adjacency_list::SizedAdjacencyList, decode_config, MapConfig, SettlePlaceID,
+        SingleAdjacencyList, Tile, TileMap, Vec2,
+    };
+
+    #[test]
+    fn decode_one_tile_map() {
+        let config = MapConfig {
+            tile_bank: TileMap {
+                desert: 1,
+                ..Default::default()
+            },
+            map_size: Vec2(1, 1),
+            tile_placement: vec![Vec2(0, 0)],
+            default_tiles: vec![Tile::Desert],
+            fixed_tiles: TileMap::default(),
+            harbour_placement: vec![],
+            default_harbours: vec![],
+        };
+
+        let res = decode_config(config, 2).unwrap();
+
+        assert_eq!(
+            res.tile.resource,
+            SingleAdjacencyList::new(vec![Tile::Desert])
+        );
+
+        assert_eq!(
+            res.tile.settle_places,
+            SizedAdjacencyList::new(vec![std::array::from_fn(|idx| SettlePlaceID(idx as u8))])
+        );
+    }
+}

@@ -1,4 +1,5 @@
 {
+    "$schema": "http://json-schema.org/draft-07/schema",
     "type": "object",
     "properties": {
         "tileBank": {
@@ -23,11 +24,7 @@
                     "$ref": "#/definitions/uint"
                 }
             },
-            "required": ["field", "pasture", "forest", "mesa", "mountains", "desert"]
-        },
-        "tileCount": {
-            "type": "integer",
-            "minimum": 1
+            "description": "The amount of different tile types present in this map. The keys are the types of tiles, and the values are the amount of specified tiles in the map. If the field type is missing in the `tileBank` property, it is assumed to have value of 0."
         },
         "mapSize": {
             "type": "array",
@@ -41,20 +38,23 @@
                 }
             ],
             "maxItems": 2,
-            "minItems": 2
+            "minItems": 2,
+            "description": "The size of the map in x and y directions. The value is a tuple [x, y]"
         },
         "tilePlacement": {
             "type": "array",
             "items": {
                 "$ref": "#/definitions/coord"
-            }
+            },
+            "description": "The positions of tiles in the map. The index of the items in the array is the ID of tile. There should be exactly as many entries as there is total amount of tiles on the map (one per each tile). The map may contain more grid places than there is tiles. This is fine, as places not occupied with tiles will be considered as an ocean. The idea of hex grid being representable as 2d square grid is not obvious. Imagine that each row is shifted quarter of a hex cell to the left (negative x) or to the right (positive x). The first row is assumed to be shifted to the right (positive x)."
         },
         "defaultTiles": {
             "type": "array",
             "items": {
                 "type": "string",
                 "enum": ["mountains", "pasture", "forest", "field", "mesa", "desert"]
-            }
+            },
+            "description": "The default type of tiles on the map, if the randomization is turned off. There should be exactly one entry per tile on the map. Index in this array will correspond to the tile ID"
         },
         "fixedTiles": {
             "type": "object",
@@ -78,10 +78,8 @@
                     "$ref": "#/definitions/fixedTile"
                 }
             },
-            "required": ["field", "pasture", "forest", "mesa", "mountains", "desert"]
-        },
-        "harbourCount": {
-            "$ref": "#/definitions/uint"
+            "required": ["field", "pasture", "forest", "mesa", "mountains", "desert"],
+            "description": "The set of tiles that should not be randomized and should always be of certain resource. Each key in the object is the type of field, each value is an array containing IDs of tiles that will inhabit such resource."
         },
         "harbourPlacement": {
             "type": "array",
@@ -89,30 +87,35 @@
                 "type": "object",
                 "properties": {
                     "position": {
-                        "$ref": "#/definitions/coord"
+                        "$ref": "#/definitions/coord",
+                        "description": "The position of the harbour on the map. It is the coordinate of the tile the port is within. It may point to the unplayable ocean tile as well as to the ocean tile. Setting the position to the tiles other than ocean is not allowed by the game rules of Catan."
                     },
                     "side": {
                         "type": "string",
-                        "enum": ["nw", "ne", "w", "e", "sw", "se"]
+                        "enum": ["nw", "ne", "w", "e", "sw", "se"],
+                        "description": "The side to which harbour is placed to on the hex tile specified by position field. North-west (nw), north-east (ne), east (e), west (w), south-west (sw) and south-east (se)."
                     }
                 }
-            }
+            },
+            "description": "The positions of harbours located on the map. Index in such array corresponds to the harbour ID"
         },
         "defaultHarbours": {
             "type": "array",
             "items": {
                 "type": "string",
                 "enum": ["universal", "wheat", "sheep", "wood", "ore", "brick"]
-            }
+            },
+            "description": "The default type of harbours on the map, if the randomization is turned off. There should be exactly one entry per harbour on the map. Index in this array will correspond to the harbour ID"
         }
     },
-    "required": ["tileBank", "tileCount", "mapSize", "tilePlacement", "defaultTiles", "harbourCount", "harbourPlacement", "defaultHarbours"],
+    "required": ["tileBank", "mapSize", "tilePlacement", "defaultTiles", "harbourPlacement", "defaultHarbours"],
     "definitions": {
         "fixedTile": {
             "type": "array",
             "items": {
                 "$ref": "#/definitions/uint"
-            }
+            },
+            "description": "Is an array containing IDs of tiles that will inhabit such resource."
         },
         "coord": {
             "type": "array",
@@ -122,7 +125,8 @@
                 "$ref": "#/definitions/uint"
             }],
             "maxItems": 2,
-            "minItems": 2
+            "minItems": 2,
+            "description": "The tuple [x, y] which represents the coordinate."
         },
         "uint": {
             "type": "integer",
