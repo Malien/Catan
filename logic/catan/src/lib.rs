@@ -1,4 +1,8 @@
-use std::collections::{HashSet, VecDeque};
+use std::{
+    collections::{HashSet, VecDeque},
+    num::TryFromIntError,
+    ops::{Index, IndexMut},
+};
 
 use enum_map::{enum_map, Enum, EnumMap};
 use serde::Deserialize;
@@ -61,6 +65,20 @@ pub struct PlayerHand {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Hash)]
 pub struct TileID(u8);
+
+impl From<TileID> for usize {
+    fn from(v: TileID) -> Self {
+        v.0 as usize
+    }
+}
+
+impl TryFrom<usize> for TileID {
+    type Error = TryFromIntError;
+
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        value.try_into().map(TileID)
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ResourceTileID(u8);
@@ -193,128 +211,34 @@ pub enum DecodeConfigError {
 
 #[derive(Debug, Clone, Copy)]
 enum VisitStatus {
-    Visited(TileID),
+    Processed(TileID),
     NotVisited(TileID, [u8; 2]),
     NotATile,
 }
 
+impl VisitStatus {
+    fn not_visited(self) -> Option<(TileID, [u8; 2])> {
+        if let Self::NotVisited(id, pos) = self {
+            Some((id, pos))
+        } else {
+            None
+        }
+    }
+}
+
 pub fn decode_config(config: MapConfig, player_count: u8) -> Result<GameMap, DecodeConfigError> {
     use DecodeConfigError::*;
-    use VisitStatus::*;
 
     if !(2..=4).contains(&player_count) {
         return Err(InvalidPlayerCount(player_count));
     }
 
-    let resource = SingleAdjacencyList::new(config.default_tiles);
-
-    let mut queue = VecDeque::new();
-    queue.push_back((config.tile_placement[0], TileID(0)));
-    let [width, height] = config.map_size;
-    let width = width as usize;
-    let height = height as usize;
-    let mut map_2d = vec![None; width * height];
-
-    for (idx, [x, y]) in config.tile_placement.into_iter().enumerate() {
-        map_2d[(x as usize) + (y as usize) * width] = Some(TileID(idx as u8))
-    }
-
-    let mut visited_tiles = HashSet::new();
-    let mut settle_places = vec![];
-    let mut tile_settle_places: Vec<EnumMap<HexVertex, SettlePlaceID>> = vec![];
-
-    while let Some((pos, tile_id)) = queue.pop_front() {
-        if visited_tiles.contains(&tile_id) {
-            continue;
-        }
-        visited_tiles.insert(tile_id);
-        let neighbor_positions = neighbor_positions(pos);
-        let neighbor_ids = neighbor_positions.map(|_, neighbor_pos| {
-            match map_2d[(neighbor_pos[0] as usize) + (neighbor_pos[1] as usize) * width] {
-                Some(neighbor_id) if visited_tiles.contains(&neighbor_id) => Visited(neighbor_id),
-                Some(neighbor_id) => NotVisited(neighbor_id, neighbor_pos),
-                None => NotATile,
-            }
-        });
-        let settle_places = enum_map! {
-            HexVertex::North => {
-                match (neighbor_ids[HexSide::NorthWest], neighbor_ids[HexSide::NorthEast]) {
-                    (Visited(tile_id), _) => {
-                        tile_settle_places[tile_id.0 as usize][HexVertex::SouthEast]
-                    }
-                    (_, Visited(tile_id)) => {
-                        tile_settle_places[tile_id.0 as usize][HexVertex::SouthWest]
-                    }
-                    _ => alloc_settle_place(&mut settle_places),
-                }
-            },
-            HexVertex::NorthEast => {
-                match (neighbor_ids[HexSide::NorthEast], neighbor_ids[HexSide::East]) {
-                    (Visited(tile_id, ), _) => {
-                        tile_settle_places[tile_id.0 as usize][HexVertex::South]
-                    }
-                    (_, Visited(tile_id)) => {
-                        tile_settle_places[tile_id.0 as usize][HexVertex::NorthWest]
-                    }
-                    _ => alloc_settle_place(&mut settle_places),
-                }
-            },
-            HexVertex::SouthEast => {
-                match (neighbor_ids[HexSide::East], neighbor_ids[HexSide::SouthEast]) {
-                    (Visited(tile_id), _) => {
-                        tile_settle_places[tile_id.0 as usize][HexVertex::SouthWest]
-                    }
-                    (_, Visited(tile_id)) => {
-                        tile_settle_places[tile_id.0 as usize][HexVertex::North]
-                    }
-                    _ => alloc_settle_place(&mut settle_places),
-                }
-            },
-            HexVertex::South => {
-                match (neighbor_ids[HexSide::SouthEast], neighbor_ids[HexSide::SouthWest]) {
-                    (Visited(tile_id), _) => {
-                        tile_settle_places[tile_id.0 as usize][HexVertex::SouthWest]
-                    }
-                    (_, Visited(tile_id)) => {
-                        tile_settle_places[tile_id.0 as usize][HexVertex::North]
-                    }
-                    _ => alloc_settle_place(&mut settle_places),
-                }
-            },
-            HexVertex::SouthWest => {
-                match (neighbor_ids[HexSide::SouthWest], neighbor_ids[HexSide::West]) {
-                    (Visited(tile_id), _) => {
-                        tile_settle_places[tile_id.0 as usize][HexVertex::North]
-                    }
-                    (_, Visited(tile_id)) => {
-                        tile_settle_places[tile_id.0 as usize][HexVertex::SouthEast]
-                    }
-                    _ => alloc_settle_place(&mut settle_places),
-                }
-            },
-            HexVertex::NorthWest => {
-                match (neighbor_ids[HexSide::West], neighbor_ids[HexSide::NorthWest]) {
-                    (Visited(tile_id), _) => {
-                        tile_settle_places[tile_id.0 as usize][HexVertex::NorthEast]
-                    }
-                    (_, Visited(tile_id)) => {
-                        tile_settle_places[tile_id.0 as usize][HexVertex::South]
-                    }
-                    _ => alloc_settle_place(&mut settle_places),
-                }
-            },
-        };
-        tile_settle_places.push(settle_places);
-        for (_, neighbor_visit_status) in neighbor_ids {
-            if let NotVisited(neighbor_id, neighbor_pos) = neighbor_visit_status {
-                queue.push_back((neighbor_pos, neighbor_id))
-            }
-        }
-    }
+    let resource = SingleAdjacencyList::from_vec(config.default_tiles);
+    let settle_places = traverse_tiles(config.map_size, config.tile_placement);
 
     let tile = TileRelationships {
         resource,
-        settle_places: SingleAdjacencyList::new(tile_settle_places),
+        settle_places,
     };
 
     let map = GameMap {
@@ -323,6 +247,114 @@ pub fn decode_config(config: MapConfig, player_count: u8) -> Result<GameMap, Dec
     };
 
     Ok(map)
+}
+
+fn traverse_tiles(
+    map_size: [u8; 2],
+    tile_placement: Vec<[u8; 2]>,
+) -> SingleAdjacencyList<TileID, EnumMap<HexVertex, SettlePlaceID>> {
+    use VisitStatus::*;
+    let mut queue = VecDeque::new();
+    queue.push_back((TileID(0), tile_placement[0]));
+    let map_2d = derive_2d_map(map_size, tile_placement);
+    let mut processed_tiles = HashSet::new();
+    let mut settle_places_count = 0;
+    let mut tile_settle_places = SingleAdjacencyList::<_, EnumMap<_, _>>::new();
+    while let Some((tile_id, pos)) = queue.pop_front() {
+        let not_processed = processed_tiles.insert(tile_id);
+        if !not_processed {
+            continue;
+        }
+
+        let neighbor_status = neighbor_positions(pos).map(|_, pos| match map_2d[pos] {
+            Some(id) if processed_tiles.contains(&id) => Processed(id),
+            Some(id) => NotVisited(id, pos),
+            None => NotATile,
+        });
+
+        let settle_places = neighbor_lookup().map(|_, [(a_side, a_vert), (b_side, b_vert)]| {
+            if let Processed(id) = neighbor_status[a_side] {
+                tile_settle_places[id][a_vert]
+            } else if let Processed(id) = neighbor_status[b_side] {
+                tile_settle_places[id][b_vert]
+            } else {
+                alloc_settle_place(&mut settle_places_count)
+            }
+        });
+
+        tile_settle_places.push(settle_places);
+
+        queue.extend(
+            neighbor_status
+                .into_values()
+                .filter_map(VisitStatus::not_visited),
+        )
+    }
+    tile_settle_places
+}
+
+fn derive_2d_map([width, height]: [u8; 2], tile_placement: Vec<[u8; 2]>) -> Matrix<Option<TileID>> {
+    let width = width as usize;
+    let height = height as usize;
+    let mut map_2d = Matrix::from_vec(vec![None; width * height], width);
+    for (idx, pos) in tile_placement.into_iter().enumerate() {
+        map_2d[pos] = Some(TileID(idx.try_into().unwrap()))
+    }
+    map_2d
+}
+
+struct Matrix<T> {
+    width: usize,
+    data: Vec<T>,
+}
+
+impl<T> Matrix<T> {
+    fn from_vec(data: Vec<T>, width: usize) -> Self {
+        Self { width, data }
+    }
+}
+
+impl<T> Index<[u8; 2]> for Matrix<T> {
+    type Output = T;
+
+    fn index(&self, [x, y]: [u8; 2]) -> &Self::Output {
+        &self.data[x as usize + (y as usize) * self.width]
+    }
+}
+
+impl<T> IndexMut<[u8; 2]> for Matrix<T> {
+    fn index_mut(&mut self, [x, y]: [u8; 2]) -> &mut Self::Output {
+        &mut self.data[x as usize + (y as usize) * self.width]
+    }
+}
+
+fn neighbor_lookup() -> EnumMap<HexVertex, [(HexSide, HexVertex); 2]> {
+    enum_map! {
+        HexVertex::North => {[
+            (HexSide::NorthWest, HexVertex::SouthEast),
+            (HexSide::NorthEast, HexVertex::SouthEast)
+        ]},
+        HexVertex::NorthEast => {[
+            (HexSide::NorthEast, HexVertex::South),
+            (HexSide::East, HexVertex::NorthWest)
+        ]},
+        HexVertex::SouthEast => {[
+            (HexSide::East, HexVertex::SouthWest),
+            (HexSide::SouthEast, HexVertex::North)
+        ]},
+        HexVertex::South => {[
+            (HexSide::SouthEast, HexVertex::SouthWest),
+            (HexSide::SouthWest, HexVertex::North)
+        ]},
+        HexVertex::SouthWest => {[
+            (HexSide::SouthWest, HexVertex::North),
+            (HexSide::West, HexVertex::SouthEast)
+        ]},
+        HexVertex::NorthWest => {[
+            (HexSide::West, HexVertex::NorthEast),
+            (HexSide::NorthWest, HexVertex::South)
+        ]},
+    }
 }
 
 fn neighbor_positions([x, y]: [u8; 2]) -> EnumMap<HexSide, [u8; 2]> {
@@ -348,9 +380,9 @@ fn neighbor_positions([x, y]: [u8; 2]) -> EnumMap<HexSide, [u8; 2]> {
     }
 }
 
-fn alloc_settle_place(settle_places: &mut Vec<SettlePlace>) -> SettlePlaceID {
-    let id = SettlePlaceID(settle_places.len().try_into().unwrap());
-    settle_places.push(SettlePlace::Empty);
+fn alloc_settle_place(settle_places_count: &mut u16) -> SettlePlaceID {
+    let id = SettlePlaceID(*settle_places_count);
+    *settle_places_count += 1;
     id
 }
 
@@ -359,22 +391,8 @@ mod test {
     use enum_map::enum_map;
 
     use crate::{
-        adjacency_list::SizedAdjacencyList, decode_config, HexVertex, MapConfig, SettlePlaceID,
-        SingleAdjacencyList, Tile, TileMap,
+        decode_config, HexVertex, MapConfig, SettlePlaceID, SingleAdjacencyList, Tile, TileMap,
     };
-
-    #[inline]
-    fn array_from_fn<F, T, const N: usize>(mut cb: F) -> [T; N]
-    where
-        F: FnMut(usize) -> T,
-    {
-        let mut idx = 0;
-        [(); N].map(|_| {
-            let res = cb(idx);
-            idx += 1;
-            res
-        })
-    }
 
     #[test]
     fn decode_one_tile_map() {
@@ -395,12 +413,12 @@ mod test {
 
         assert_eq!(
             res.tile.resource,
-            SingleAdjacencyList::new(vec![Tile::Desert])
+            SingleAdjacencyList::from_vec(vec![Tile::Desert])
         );
 
         assert_eq!(
             res.tile.settle_places,
-            SingleAdjacencyList::new(vec![enum_map! {
+            SingleAdjacencyList::from_vec(vec![enum_map! {
                 HexVertex::North => SettlePlaceID(0),
                 HexVertex::NorthWest => SettlePlaceID(1),
                 HexVertex::NorthEast => SettlePlaceID(2),
@@ -430,12 +448,12 @@ mod test {
 
         assert_eq!(
             res.tile.resource,
-            SingleAdjacencyList::new(vec![Tile::Desert, Tile::Desert, Tile::Desert])
+            SingleAdjacencyList::from_vec(vec![Tile::Desert, Tile::Desert, Tile::Desert])
         );
 
         assert_eq!(
             res.tile.settle_places,
-            SingleAdjacencyList::new(vec![
+            SingleAdjacencyList::from_vec(vec![
                 enum_map! {
                     HexVertex::North => SettlePlaceID(0),
                     HexVertex::NorthWest => SettlePlaceID(1),

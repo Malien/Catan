@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
+use std::ops::{Index, IndexMut};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SingleAdjacencyList<K, V> {
@@ -17,11 +18,47 @@ impl<K, V> Default for SingleAdjacencyList<K, V> {
 }
 
 impl<K, V> SingleAdjacencyList<K, V> {
-    pub fn new(values: Vec<V>) -> Self {
+    pub fn from_vec(values: Vec<V>) -> Self {
         Self {
             values,
             _phantom: PhantomData,
         }
+    }
+
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl<K, V> SingleAdjacencyList<K, V>
+where
+    K: TryFrom<usize>,
+    <K as TryFrom<usize>>::Error: std::fmt::Debug,
+{
+    pub fn push(&mut self, value: V) -> K {
+        let id = self.values.len().try_into().unwrap();
+        self.values.push(value);
+        id
+    }
+}
+
+impl<K, V> Index<K> for SingleAdjacencyList<K, V>
+where
+    K: Into<usize>,
+{
+    type Output = V;
+
+    fn index(&self, index: K) -> &Self::Output {
+        &self.values[index.into()]
+    }
+}
+
+impl<K, V> IndexMut<K> for SingleAdjacencyList<K, V>
+where
+    K: Into<usize>,
+{
+    fn index_mut(&mut self, index: K) -> &mut Self::Output {
+        &mut self.values[index.into()]
     }
 }
 
@@ -64,30 +101,20 @@ impl<K, V, const SIZE: usize> SizedAdjacencyList<K, V, SIZE> {
     }
 }
 
-
 #[derive(Debug)]
 /// SAFETY: CAPACITY should not exceed 255 (does not overflow u8)
-pub struct CappedRelationship<V, const CAPACITY: /* u8 */ usize>
-// where
-//     [(); CAPACITY as usize]: ,
-{
+pub struct CappedRelationship<V, const CAPACITY: usize> {
     size: u8,
-    values: [MaybeUninit<V>; CAPACITY /* as usize */],
+    values: [MaybeUninit<V>; CAPACITY],
 }
 
 #[derive(Debug)]
-pub struct CappedAdjacencyList<K, V, const CAPACITY: /* u8 */ usize>
-// where
-//     [(); CAPACITY as usize]: ,
-{
+pub struct CappedAdjacencyList<K, V, const CAPACITY: usize> {
     values: Vec<CappedRelationship<V, CAPACITY>>,
     _phantom: PhantomData<K>,
 }
 
-impl<K, V, const CAPACITY: /* u8 */ usize> Default for CappedAdjacencyList<K, V, CAPACITY>
-// where
-//     [(); CAPACITY as usize]: ,
-{
+impl<K, V, const CAPACITY: usize> Default for CappedAdjacencyList<K, V, CAPACITY> {
     fn default() -> Self {
         Self {
             values: Vec::default(),
