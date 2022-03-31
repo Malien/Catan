@@ -1,6 +1,3 @@
-#![feature(generic_const_exprs)]
-#![feature(array_from_fn)]
-
 use enum_map::{Enum, EnumMap};
 use serde::Deserialize;
 
@@ -214,6 +211,19 @@ mod test {
         SingleAdjacencyList, Tile, TileMap, Vec2,
     };
 
+    #[inline]
+    fn array_from_fn<F, T, const N: usize>(mut cb: F) -> [T; N]
+    where
+        F: FnMut(usize) -> T,
+    {
+        let mut idx = 0;
+        [(); N].map(|_| {
+            let res = cb(idx);
+            idx += 1;
+            res
+        })
+    }
+
     #[test]
     fn decode_one_tile_map() {
         let config = MapConfig {
@@ -238,7 +248,7 @@ mod test {
 
         assert_eq!(
             res.tile.settle_places,
-            SizedAdjacencyList::new(vec![std::array::from_fn(|idx| SettlePlaceID(idx as u8))])
+            SizedAdjacencyList::new(vec![array_from_fn(|idx| SettlePlaceID(idx as u8))])
         );
     }
 }

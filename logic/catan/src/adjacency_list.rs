@@ -66,26 +66,27 @@ impl<K, V, const SIZE: usize> SizedAdjacencyList<K, V, SIZE> {
 
 
 #[derive(Debug)]
-pub struct CappedRelationship<V, const CAPACITY: u8>
-where
-    [(); CAPACITY as usize]: ,
+/// SAFETY: CAPACITY should not exceed 255 (does not overflow u8)
+pub struct CappedRelationship<V, const CAPACITY: /* u8 */ usize>
+// where
+//     [(); CAPACITY as usize]: ,
 {
     size: u8,
-    values: [MaybeUninit<V>; CAPACITY as usize],
+    values: [MaybeUninit<V>; CAPACITY /* as usize */],
 }
 
 #[derive(Debug)]
-pub struct CappedAdjacencyList<K, V, const CAPACITY: u8>
-where
-    [(); CAPACITY as usize]: ,
+pub struct CappedAdjacencyList<K, V, const CAPACITY: /* u8 */ usize>
+// where
+//     [(); CAPACITY as usize]: ,
 {
     values: Vec<CappedRelationship<V, CAPACITY>>,
     _phantom: PhantomData<K>,
 }
 
-impl<K, V, const CAPACITY: u8> Default for CappedAdjacencyList<K, V, CAPACITY>
-where
-    [(); CAPACITY as usize]: ,
+impl<K, V, const CAPACITY: /* u8 */ usize> Default for CappedAdjacencyList<K, V, CAPACITY>
+// where
+//     [(); CAPACITY as usize]: ,
 {
     fn default() -> Self {
         Self {
