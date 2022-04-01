@@ -3,7 +3,7 @@ use serde::Deserialize;
 
 use crate::ids::PlayerID;
 
-
+/// The five fundamental resources in the game of Catan
 #[derive(Debug, Clone, Copy, Enum, PartialEq, Eq)]
 pub enum Resource {
     Wheat,
@@ -13,9 +13,10 @@ pub enum Resource {
     Ore,
 }
 
+/// The six tile terrains in the game of Catan
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
-pub enum TileType {
+pub enum TileTerrain {
     Field,
     Pasture,
     Forest,
@@ -31,6 +32,9 @@ pub enum SettlePlace {
     Empty,
 }
 
+/// Markers put on top of the Catan tiles signifying possible
+/// outcomes of a two dice roll (Except for seven, which is 
+/// reserved for robbers actions)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DiceMarker {
     Two,
@@ -46,6 +50,7 @@ pub enum DiceMarker {
     Twelve,
 }
 
+/// Current resources, dev cards and objects left to place of a given player
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PlayerHand {
     pub resources: EnumMap<Resource, u8>,
@@ -54,6 +59,7 @@ pub struct PlayerHand {
     pub roads: u8,
 }
 
+/// All of the sides of a hexagonal tile
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Enum)]
 pub enum HexSide {
     #[serde(rename = "nw")]
@@ -71,6 +77,7 @@ pub enum HexSide {
 }
 
 impl HexSide {
+    /// Get the orthogonal side of the hexagonal tile
     pub fn opposite(self) -> Self {
         use HexSide::*;
         match self {
@@ -83,6 +90,8 @@ impl HexSide {
         }
     }
 
+    /// Each given side connects two vertexes together. This function gives you
+    /// which two concrete vertexes the specified side connects.
     pub fn connected_vertices(self) -> [HexVertex; 2] {
         match self {
             HexSide::NorthWest => [HexVertex::NorthWest, HexVertex::North],
@@ -95,6 +104,7 @@ impl HexSide {
     }
 }
 
+/// All of the vertexes of a hexagonal tile
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Enum)]
 pub enum HexVertex {
     North,

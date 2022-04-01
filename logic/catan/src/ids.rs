@@ -1,3 +1,10 @@
+/// Type-safe wrappers around ints.
+/// This is used to refer to handles to Entities as a typed ID,
+/// and not some kind of arbitrary u8 for e.g.
+/// 
+/// This is mostly to give semantic meaning to types such as Map<EntityID, Entity>,
+/// where we can now see, that EntityID and Entity are correlated and EntityID
+/// shouldn't be used in places where it is not expected to be seen.
 macro_rules! int_wrapper {
     ($name: ident, $ty: ty) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, ::serde::Deserialize, Hash)]

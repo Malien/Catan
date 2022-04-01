@@ -1,6 +1,12 @@
 use std::marker::PhantomData;
 use std::ops::{Index, IndexMut};
 
+/// A data structure meant to be used for representing mappings from K -> V.
+/// 
+/// Values are stored contiguously in memory in a Vec<V>. The indexes of the said
+/// Vec are the keys representing association of K -> V.
+/// 
+/// Keys must be convertible from and to usize.
 #[derive(Clone, PartialEq, Eq)]
 pub struct AdjacencyList<K, V> {
     values: Vec<V>,
@@ -29,6 +35,8 @@ impl<K, V> Default for AdjacencyList<K, V> {
 }
 
 impl<K, V> AdjacencyList<K, V> {
+    /// Create new AdjacencyList with values from the vec. Each values is assigned
+    /// an key in relation to the index of such value in th vec.
     pub fn from_vec(values: Vec<V>) -> Self {
         Self {
             values,
@@ -46,6 +54,7 @@ where
     K: TryFrom<usize>,
     <K as TryFrom<usize>>::Error: std::fmt::Debug,
 {
+    /// Push a new mapping K -> V, where K is the new key of the value.
     pub fn push(&mut self, value: V) -> K {
         let id = self.values.len().try_into().unwrap();
         self.values.push(value);

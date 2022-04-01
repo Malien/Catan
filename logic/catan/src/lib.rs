@@ -33,16 +33,30 @@ pub struct TileMap<T> {
     pub desert: T,
 }
 
+/// The configuration of any given map stored usually as as json file
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MapConfig {
+    /// The amount of different terrains in use in specified map
     tile_bank: TileMap<u8>,
     map_size: [u8; 2],
+    /// Positions of all of the tiles. Index signifies TileID,
+    /// while value, is the coordinated in a squared-off map
     tile_placement: Vec<[u8; 2]>,
-    default_tiles: Vec<TileType>,
+    /// If randomization is turned off, how will the distribution
+    /// of terrains lay itself.
+    default_tiles: Vec<TileTerrain>,
     #[serde(default)]
+    /// Terrains which should always be associated with specified TileIDs
+    /// and not randomized if randomization is requested
     fixed_tiles: TileMap<Vec<TileID>>,
+    /// The positions of the harbours and their rotation within specified
+    /// tile. The index signifies HarborID, while the value contains the
+    /// coordinate within which the harbour is places as well a the side
+    /// to which it is attached within that tile.
     harbour_placement: Vec<HarbourPlacement>,
+    /// If randomization is turned off, how will the distribution
+    /// of harbours lay itself.
     default_harbours: Vec<Harbour>,
 }
 
@@ -51,13 +65,15 @@ pub enum DecodeConfigError {
     InvalidPlayerCount(u8),
 }
 
-pub fn decode_config(config: MapConfig, player_count: u8) -> Result<GameMap, DecodeConfigError> {
+/// Given map config, randomization preference, and player count, generate game state.
+pub fn decode_config(config: MapConfig, player_count: u8) -> Result<GameState, DecodeConfigError> {
     use DecodeConfigError::*;
 
     if !(2..=4).contains(&player_count) {
         return Err(InvalidPlayerCount(player_count));
     }
 
+    // Until randomization is implemented, just provide the default distribution of terrains.
     let resource = AdjacencyList::from_vec(config.default_tiles);
     let TileTraversalResult {
         tile_settle_places,
@@ -80,7 +96,7 @@ pub fn decode_config(config: MapConfig, player_count: u8) -> Result<GameMap, Dec
         settle_places: road_settle_places,
     };
 
-    let map = GameMap {
+    let map = GameState {
         tile: tile_relations,
         road: road_relations,
         settle_place: settle_relations,
@@ -114,29 +130,45 @@ struct TileTraversalResult {
     settle_places_count: u16,
 }
 
+/// Do a graph traversal (BSF) of tiles, while filling in the relations between tiles, roads and settle places
 fn traverse_tiles(map_size: [u8; 2], tile_placement: Vec<[u8; 2]>) -> TileTraversalResult {
     use VisitStatus::*;
+
     let mut queue = VecDeque::new();
     queue.push_back((TileID(0), tile_placement[0]));
+
     let map_2d = derive_2d_map(map_size, tile_placement);
+
     let mut processed_tiles = HashSet::new();
     let mut settle_places_count = 0;
+    // Relationships between tiles and settle places located at the vertexes of said tile
     let mut tile_settle_places = TileRelations::<EnumMap<HexVertex, SettlePlaceID>>::new();
+    // Relationships between tiles and roads located at the sides of said tile
     let mut tile_roads = TileRelations::<EnumMap<HexSide, RoadID>>::new();
+    // Relationships between roads and the settle places it is connecting.
     let mut road_settle_places = RoadRelations::<[SettlePlaceID; 2]>::new();
 
+    // While queue of tiles to be processed is not empty
     while let Some((tile_id, pos)) = queue.pop_front() {
+        // If tile is already processed (HashSet::insert returns true if value wasn't in the set),
+        // skip processing it
         let not_processed = processed_tiles.insert(tile_id);
         if !not_processed {
             continue;
         }
 
+        // For each neighbor tile might have, determine the status of said tile.
+        // Either processed, not visited, or not a tile completely.
         let neighbor_status = neighbor_positions(pos).map(|_, pos| match map_2d[pos] {
             Some(tile_id) if processed_tiles.contains(&tile_id) => Processed(tile_id),
             Some(tile_id) => NotVisited(tile_id, pos),
             None => NotATile,
         });
 
+        // For each neighboring side, if the neighboring tile is not present, or is not processed,
+        // create a new (monotonically increasing) SettlePlaceID. Buf if a neighbor was already
+        // processed copy it's settle place id as ours (with respects to the correct correlation
+        // of vertexes).
         let settle_places =
             settle_places_lookup().map(|_, [(a_side, a_vert), (b_side, b_vert)]| {
                 if let Processed(neighbor_id) = neighbor_status[a_side] {
@@ -150,6 +182,10 @@ fn traverse_tiles(map_size: [u8; 2], tile_placement: Vec<[u8; 2]>) -> TileTraver
                 }
             });
 
+        // Do the same trick (where we copy existing road IDs from our already
+        // processed neighbors) as with the settle places, to the roads.
+        // But, if the road were not previously constructed, also fill in 
+        // relationship between road and two settle places it connects.
         let roads = neighbor_status.map(|side, status| {
             if let Processed(id) = status {
                 tile_roads[id][side.opposite()]
@@ -163,6 +199,7 @@ fn traverse_tiles(map_size: [u8; 2], tile_placement: Vec<[u8; 2]>) -> TileTraver
         tile_settle_places.push(settle_places);
         tile_roads.push(roads);
 
+        // Add to the queue all of the neighbors we haven't processed yet
         queue.extend(
             neighbor_status
                 .into_values()
@@ -178,10 +215,13 @@ fn traverse_tiles(map_size: [u8; 2], tile_placement: Vec<[u8; 2]>) -> TileTraver
     }
 }
 
+/// Given the relationships of RoadID -> SettlePlaceID produce the 
+/// inverse relationships of kind SettlePlaceID -> RoadID
 fn derive_settle_place_roads_relations(
     road_settle_places: &AdjacencyList<RoadID, [SettlePlaceID; 2]>,
     settle_places_count: u16,
 ) -> AdjacencyList<SettlePlaceID, ArrayVec<RoadID, 3>> {
+    // Create AdjacencyList of empty vecs, ot be filled in
     let mut settle_place_roads = AdjacencyList::from_vec(
         std::iter::repeat_with(ArrayVec::new)
             .take(settle_places_count as usize)
@@ -196,6 +236,9 @@ fn derive_settle_place_roads_relations(
     settle_place_roads
 }
 
+/// Given the size of the map and the positions of tiles within, produce
+/// 2D Matrix of map size, where each value is either the id of a tile
+/// in the position, or nothing, if no such tile is located there
 fn derive_2d_map([width, height]: [u8; 2], tile_placement: Vec<[u8; 2]>) -> Matrix<Option<TileID>> {
     let width = width as usize;
     let height = height as usize;
@@ -206,6 +249,8 @@ fn derive_2d_map([width, height]: [u8; 2], tile_placement: Vec<[u8; 2]>) -> Matr
     map_2d
 }
 
+/// Just a small simple convenience struct which allows indexing
+/// it with pairs of u8's which represent 2d coordinates
 struct Matrix<T> {
     width: usize,
     data: Vec<T>,
@@ -231,6 +276,8 @@ impl<T> IndexMut<[u8; 2]> for Matrix<T> {
     }
 }
 
+/// The mapping of tile vertex to the pair of neighboring sides which may
+/// contain the same vertex, but in a different position within their geometry
 fn settle_places_lookup() -> EnumMap<HexVertex, [(HexSide, HexVertex); 2]> {
     enum_map! {
         HexVertex::North => {[
@@ -260,6 +307,8 @@ fn settle_places_lookup() -> EnumMap<HexVertex, [(HexSide, HexVertex); 2]> {
     }
 }
 
+/// Given the coordinate of the tile, produce the set of neighbor coordinates 
+/// with the correlation as which side it is neighboring with.
 fn neighbor_positions([x, y]: [u8; 2]) -> EnumMap<HexSide, [u8; 2]> {
     use HexSide::*;
     if y % 2 == 0 {
@@ -289,7 +338,7 @@ mod test {
 
     use crate::{
         array_vec::array_vec, decode_config, ids::RoadID, types::HexSide, AdjacencyList, HexVertex,
-        MapConfig, SettlePlaceID, TileMap, TileType,
+        MapConfig, SettlePlaceID, TileMap, TileTerrain,
     };
 
     #[test]
@@ -301,7 +350,7 @@ mod test {
             },
             map_size: [3, 3],
             tile_placement: vec![[1, 1]],
-            default_tiles: vec![TileType::Desert],
+            default_tiles: vec![TileTerrain::Desert],
             fixed_tiles: TileMap::default(),
             harbour_placement: vec![],
             default_harbours: vec![],
@@ -311,7 +360,7 @@ mod test {
 
         assert_eq!(
             res.tile.resource,
-            AdjacencyList::from_vec(vec![TileType::Desert])
+            AdjacencyList::from_vec(vec![TileTerrain::Desert])
         );
 
         assert_eq!(
@@ -372,7 +421,7 @@ mod test {
             },
             map_size: [4, 4],
             tile_placement: vec![[1, 1], [2, 1], [2, 2]],
-            default_tiles: vec![TileType::Desert, TileType::Desert, TileType::Desert],
+            default_tiles: vec![TileTerrain::Desert, TileTerrain::Desert, TileTerrain::Desert],
             fixed_tiles: TileMap::default(),
             harbour_placement: vec![],
             default_harbours: vec![],
@@ -382,7 +431,7 @@ mod test {
 
         assert_eq!(
             res.tile.resource,
-            AdjacencyList::from_vec(vec![TileType::Desert, TileType::Desert, TileType::Desert])
+            AdjacencyList::from_vec(vec![TileTerrain::Desert, TileTerrain::Desert, TileTerrain::Desert])
         );
 
         assert_eq!(
