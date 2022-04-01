@@ -1,11 +1,17 @@
 use enum_map::EnumMap;
 
-use crate::{adjacency_list::{SingleAdjacencyList, SizedAdjacencyList, HSparseAdjacencyList, CappedAdjacencyList}, ids::{TileID, SettlePlaceID, RoadID, DiceMarkerID, ResourceTileID}, types::{Tile, HexVertex, Player, PlayerHand, DiceMarker}};
+use crate::{
+    adjacency_list::{
+        CappedAdjacencyList, HSparseAdjacencyList, SingleAdjacencyList, SizedAdjacencyList,
+    },
+    ids::{DiceMarkerID, ResourceTileID, RoadID, SettlePlaceID, TileID},
+    types::{DiceMarker, HexSide, HexVertex, Player, PlayerHand, Tile},
+};
 
 #[derive(Debug, Default)]
 pub struct TileRelationships {
     pub resource: SingleAdjacencyList<TileID, Tile>,
-    // pub roads: SizedAdjacencyList<TileID, RoadID, 6>,
+    pub roads: SingleAdjacencyList<TileID, EnumMap<HexSide, RoadID>>,
     pub settle_places: SingleAdjacencyList<TileID, EnumMap<HexVertex, SettlePlaceID>>,
 }
 

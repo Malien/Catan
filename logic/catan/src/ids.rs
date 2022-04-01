@@ -23,7 +23,7 @@ impl TryFrom<usize> for TileID {
 pub struct ResourceTileID(pub u8);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RoadID(pub u8);
+pub struct RoadID(pub u16);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SettlePlaceID(pub u16);

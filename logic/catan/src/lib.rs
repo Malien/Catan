@@ -57,10 +57,11 @@ pub fn decode_config(config: MapConfig, player_count: u8) -> Result<GameMap, Dec
     }
 
     let resource = SingleAdjacencyList::from_vec(config.default_tiles);
-    let settle_places = traverse_tiles(config.map_size, config.tile_placement);
+    let (settle_places, roads) = traverse_tiles(config.map_size, config.tile_placement);
 
     let tile = TileRelationships {
         resource,
+        roads,
         settle_places,
     };
 
@@ -92,14 +93,19 @@ impl VisitStatus {
 fn traverse_tiles(
     map_size: [u8; 2],
     tile_placement: Vec<[u8; 2]>,
-) -> SingleAdjacencyList<TileID, EnumMap<HexVertex, SettlePlaceID>> {
+) -> (
+    SingleAdjacencyList<TileID, EnumMap<HexVertex, SettlePlaceID>>,
+    SingleAdjacencyList<TileID, EnumMap<HexSide, RoadID>>,
+) {
     use VisitStatus::*;
     let mut queue = VecDeque::new();
     queue.push_back((TileID(0), tile_placement[0]));
     let map_2d = derive_2d_map(map_size, tile_placement);
     let mut processed_tiles = HashSet::new();
     let mut settle_places_count = 0;
+    let mut placed_roads_count = 0;
     let mut tile_settle_places = SingleAdjacencyList::<_, EnumMap<_, _>>::new();
+    let mut tile_roads = SingleAdjacencyList::<TileID, EnumMap<HexSide, RoadID>>::new();
 
     while let Some((tile_id, pos)) = queue.pop_front() {
         let not_processed = processed_tiles.insert(tile_id);
@@ -113,17 +119,27 @@ fn traverse_tiles(
             None => NotATile,
         });
 
-        let settle_places = neighbor_lookup().map(|_, [(a_side, a_vert), (b_side, b_vert)]| {
-            if let Processed(id) = neighbor_status[a_side] {
-                tile_settle_places[id][a_vert]
-            } else if let Processed(id) = neighbor_status[b_side] {
-                tile_settle_places[id][b_vert]
+        let settle_places =
+            settle_places_lookup().map(|_, [(a_side, a_vert), (b_side, b_vert)]| {
+                if let Processed(id) = neighbor_status[a_side] {
+                    tile_settle_places[id][a_vert]
+                } else if let Processed(id) = neighbor_status[b_side] {
+                    tile_settle_places[id][b_vert]
+                } else {
+                    alloc_settle_place(&mut settle_places_count)
+                }
+            });
+
+        let roads = neighbor_status.map(|side, status| {
+            if let Processed(id) = status {
+                tile_roads[id][side.opposite()]
             } else {
-                alloc_settle_place(&mut settle_places_count)
+                alloc_road(&mut placed_roads_count)
             }
         });
 
         tile_settle_places.push(settle_places);
+        tile_roads.push(roads);
 
         queue.extend(
             neighbor_status
@@ -131,7 +147,8 @@ fn traverse_tiles(
                 .filter_map(VisitStatus::not_visited),
         )
     }
-    tile_settle_places
+
+    (tile_settle_places, tile_roads)
 }
 
 fn derive_2d_map([width, height]: [u8; 2], tile_placement: Vec<[u8; 2]>) -> Matrix<Option<TileID>> {
@@ -169,7 +186,7 @@ impl<T> IndexMut<[u8; 2]> for Matrix<T> {
     }
 }
 
-fn neighbor_lookup() -> EnumMap<HexVertex, [(HexSide, HexVertex); 2]> {
+fn settle_places_lookup() -> EnumMap<HexVertex, [(HexSide, HexVertex); 2]> {
     enum_map! {
         HexVertex::North => {[
             (HexSide::NorthWest, HexVertex::SouthEast),
@@ -227,12 +244,18 @@ fn alloc_settle_place(settle_places_count: &mut u16) -> SettlePlaceID {
     id
 }
 
+fn alloc_road(placed_road_count: &mut u16) -> RoadID {
+    let id = RoadID(*placed_road_count);
+    *placed_road_count += 1;
+    id
+}
+
 #[cfg(test)]
 mod test {
     use enum_map::enum_map;
 
     use crate::{
-        decode_config, HexVertex, MapConfig, SettlePlaceID, SingleAdjacencyList, Tile, TileMap,
+        decode_config, HexVertex, MapConfig, SettlePlaceID, SingleAdjacencyList, Tile, TileMap, ids::RoadID, types::HexSide,
     };
 
     #[test]
@@ -268,6 +291,20 @@ mod test {
                 HexVertex::South => SettlePlaceID(5),
             }])
         );
+
+        assert_eq!(
+            res.tile.roads,
+            SingleAdjacencyList::from_vec(vec![
+                enum_map!{
+                    HexSide::NorthWest => RoadID(0),
+                    HexSide::NorthEast => RoadID(1), 
+                    HexSide::West => RoadID(2),
+                    HexSide::East => RoadID(3),
+                    HexSide::SouthWest => RoadID(4),
+                    HexSide::SouthEast => RoadID(5)
+                }, 
+            ])
+        )
     }
 
     #[test]
@@ -318,6 +355,36 @@ mod test {
                     HexVertex::SouthWest => SettlePlaceID(10),
                     HexVertex::SouthEast => SettlePlaceID(11),
                     HexVertex::South => SettlePlaceID(12),
+                }
+            ])
+        );
+
+        assert_eq!(
+            res.tile.roads,
+            SingleAdjacencyList::from_vec(vec![
+                enum_map!{
+                    HexSide::NorthWest => RoadID(0),
+                    HexSide::NorthEast => RoadID(1), 
+                    HexSide::West => RoadID(2),
+                    HexSide::East => RoadID(3),
+                    HexSide::SouthWest => RoadID(4),
+                    HexSide::SouthEast => RoadID(5)
+                }, 
+                enum_map! {
+                    HexSide::NorthWest => RoadID(6),
+                    HexSide::NorthEast => RoadID(7),
+                    HexSide::West => RoadID(3),
+                    HexSide::East => RoadID(8),
+                    HexSide::SouthWest => RoadID(9),
+                    HexSide::SouthEast => RoadID(10)
+                }, 
+                enum_map! {
+                    HexSide::NorthWest => RoadID(5),
+                    HexSide::NorthEast => RoadID(9),
+                    HexSide::West => RoadID(11),
+                    HexSide::East => RoadID(12),
+                    HexSide::SouthWest => RoadID(13),
+                    HexSide::SouthEast => RoadID(14)
                 }
             ])
         );

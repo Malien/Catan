@@ -70,6 +70,20 @@ pub enum HexSide {
     SouthEast,
 }
 
+impl HexSide {
+    pub fn opposite(self) -> Self {
+        use HexSide::*;
+        match self {
+            NorthWest => SouthEast,
+            NorthEast => SouthWest,
+            West => East,
+            East => West,
+            SouthWest => NorthEast,
+            SouthEast => NorthWest,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Enum)]
 pub enum HexVertex {
     North,
