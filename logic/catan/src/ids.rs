@@ -1,45 +1,28 @@
-use std::num::TryFromIntError;
+macro_rules! int_wrapper {
+    ($name: ident, $ty: ty) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, ::serde::Deserialize, Hash)]
+        pub struct $name(pub $ty);
 
-use serde::Deserialize;
+        impl From<$name> for usize {
+            fn from(v: $name) -> Self {
+                v.0 as usize
+            }
+        }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Hash)]
-pub struct TileID(pub u8);
+        impl TryFrom<usize> for $name {
+            type Error = ::std::num::TryFromIntError;
 
-impl From<TileID> for usize {
-    fn from(v: TileID) -> Self {
-        v.0 as usize
-    }
+            fn try_from(value: usize) -> Result<Self, Self::Error> {
+                value.try_into().map($name)
+            }
+        }
+
+    };
 }
 
-impl TryFrom<usize> for TileID {
-    type Error = TryFromIntError;
-
-    fn try_from(value: usize) -> Result<Self, Self::Error> {
-        value.try_into().map(TileID)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ResourceTileID(pub u8);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RoadID(pub u16);
-
-impl From<RoadID> for usize {
-    fn from(v: RoadID) -> Self {
-        v.0 as usize
-    }
-}
-
-impl TryFrom<usize> for RoadID {
-    type Error = TryFromIntError;
-
-    fn try_from(value: usize) -> Result<Self, Self::Error> {
-        value.try_into().map(RoadID)
-    }
-}
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SettlePlaceID(pub u16);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct DiceMarkerID(pub u8);
+int_wrapper!(TileID, u8);
+int_wrapper!(ResourceTileID, u8);
+int_wrapper!(RoadID, u16);
+int_wrapper!(SettlePlaceID, u16);
+int_wrapper!(DiceMarkerID, u8);
+int_wrapper!(PlayerID, u8);

@@ -1,8 +1,8 @@
 use enum_map::{Enum, EnumMap};
 use serde::Deserialize;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Player(u8);
+use crate::ids::PlayerID;
+
 
 #[derive(Debug, Clone, Copy, Enum, PartialEq, Eq)]
 pub enum Resource {
@@ -15,7 +15,7 @@ pub enum Resource {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
-pub enum Tile {
+pub enum TileType {
     Field,
     Pasture,
     Forest,
@@ -26,8 +26,8 @@ pub enum Tile {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SettlePlace {
-    Settlement(Player),
-    Town(Player),
+    Settlement(PlayerID),
+    Town(PlayerID),
     Empty,
 }
 

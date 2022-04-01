@@ -2,46 +2,57 @@ use enum_map::EnumMap;
 
 use crate::{
     adjacency_list::AdjacencyList,
-    ids::{DiceMarkerID, ResourceTileID, RoadID, SettlePlaceID, TileID},
-    types::{DiceMarker, HexSide, HexVertex, Player, PlayerHand, Tile}, array_vec::ArrayVec,
+    array_vec::ArrayVec,
+    ids::{DiceMarkerID, ResourceTileID, RoadID, SettlePlaceID, TileID, PlayerID},
+    types::{DiceMarker, HexSide, HexVertex, PlayerHand, TileType},
 };
 
-#[derive(Debug, Default)]
-pub struct TileRelationships {
-    pub resource: AdjacencyList<TileID, Tile>,
-    pub roads: AdjacencyList<TileID, EnumMap<HexSide, RoadID>>,
-    pub settle_places: AdjacencyList<TileID, EnumMap<HexVertex, SettlePlaceID>>,
-}
+pub type TileRelations<T> = AdjacencyList<TileID, T>;
 
 #[derive(Debug, Default)]
-pub struct RoadRelationships {
-    pub settle_places: AdjacencyList<RoadID, [SettlePlaceID; 2]>,
+pub struct TileEntities {
+    pub resource: TileRelations<TileType>,
+    pub roads: TileRelations<EnumMap<HexSide, RoadID>>,
+    pub settle_places: TileRelations<EnumMap<HexVertex, SettlePlaceID>>,
 }
 
-#[derive(Debug, Default)]
-pub struct PlayerRelationships {
-    pub placed_roads: AdjacencyList<Player, Vec<RoadID>>,
-    pub towns: AdjacencyList<Player, Vec<SettlePlaceID>>,
-    pub settlements: AdjacencyList<Player, Vec<SettlePlaceID>>,
-    pub hand: AdjacencyList<Player, PlayerHand>,
-}
+pub type RoadRelations<T> = AdjacencyList<RoadID, T>;
 
 #[derive(Debug, Default)]
-pub struct SettlePlaceRelationships {
-    pub roads: AdjacencyList<SettlePlaceID, ArrayVec<RoadID, 3>>,
+pub struct RoadEntities {
+    pub settle_places: RoadRelations<[SettlePlaceID; 2]>,
+}
+
+pub type PlayerRelations<T> = AdjacencyList<PlayerID, T>;
+
+#[derive(Debug, Default)]
+pub struct PlayerEntities {
+    pub placed_roads: PlayerRelations<Vec<RoadID>>,
+    pub towns: PlayerRelations<Vec<SettlePlaceID>>,
+    pub settlements: PlayerRelations<Vec<SettlePlaceID>>,
+    pub hand: PlayerRelations<PlayerHand>,
+}
+
+pub type SettleRelations<T> = AdjacencyList<SettlePlaceID, T>;
+
+#[derive(Debug, Default)]
+pub struct SettlePlaceEntities {
+    pub roads: SettleRelations<ArrayVec<RoadID, 3>>,
     // pub tiles: CappedAdjacencyList<TileID, 2, 3>
 }
 
+pub type DiceMarkerRelations<T> = AdjacencyList<DiceMarkerID, T>;
+
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub struct DiceMarkerRelationships {
-    pub values: AdjacencyList<DiceMarkerID, DiceMarker>,
-    pub place: AdjacencyList<DiceMarkerID, ResourceTileID>,
+pub struct DiceMarkerEntities {
+    pub values: DiceMarkerRelations<DiceMarker>,
+    pub place: DiceMarkerRelations<ResourceTileID>,
 }
 
 #[derive(Debug, Default)]
 pub struct GameMap {
-    pub tile: TileRelationships,
-    pub road: RoadRelationships,
-    pub player: PlayerRelationships,
-    pub settle_place: SettlePlaceRelationships,
+    pub tile: TileEntities,
+    pub road: RoadEntities,
+    pub player: PlayerEntities,
+    pub settle_place: SettlePlaceEntities,
 }
