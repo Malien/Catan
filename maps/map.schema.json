@@ -28,15 +28,10 @@
         },
         "mapSize": {
             "type": "array",
-            "items": [{
-                    "type": "integer",
-                    "minimum": 1
-                },
-                {
-                    "type": "integer",
-                    "minimum": 1
-                }
-            ],
+            "items": {
+                "type": "integer",
+                "minimum": 1
+            },
             "maxItems": 2,
             "minItems": 2,
             "description": "The size of the map in x and y directions. The value is a tuple [x, y]"
@@ -119,11 +114,9 @@
         },
         "coord": {
             "type": "array",
-            "items": [{
+            "items": {
                 "$ref": "#/definitions/uint"
-            }, {
-                "$ref": "#/definitions/uint"
-            }],
+            },
             "maxItems": 2,
             "minItems": 2,
             "description": "The tuple [x, y] which represents the coordinate."
