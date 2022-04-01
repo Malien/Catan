@@ -1,43 +1,41 @@
 use enum_map::EnumMap;
 
 use crate::{
-    adjacency_list::{
-        CappedAdjacencyList, HSparseAdjacencyList, SingleAdjacencyList, SizedAdjacencyList,
-    },
+    adjacency_list::AdjacencyList,
     ids::{DiceMarkerID, ResourceTileID, RoadID, SettlePlaceID, TileID},
-    types::{DiceMarker, HexSide, HexVertex, Player, PlayerHand, Tile},
+    types::{DiceMarker, HexSide, HexVertex, Player, PlayerHand, Tile}, array_vec::ArrayVec,
 };
 
 #[derive(Debug, Default)]
 pub struct TileRelationships {
-    pub resource: SingleAdjacencyList<TileID, Tile>,
-    pub roads: SingleAdjacencyList<TileID, EnumMap<HexSide, RoadID>>,
-    pub settle_places: SingleAdjacencyList<TileID, EnumMap<HexVertex, SettlePlaceID>>,
+    pub resource: AdjacencyList<TileID, Tile>,
+    pub roads: AdjacencyList<TileID, EnumMap<HexSide, RoadID>>,
+    pub settle_places: AdjacencyList<TileID, EnumMap<HexVertex, SettlePlaceID>>,
 }
 
 #[derive(Debug, Default)]
 pub struct RoadRelationships {
-    pub settle_places: SizedAdjacencyList<RoadID, SettlePlaceID, 2>,
+    pub settle_places: AdjacencyList<RoadID, [SettlePlaceID; 2]>,
 }
 
 #[derive(Debug, Default)]
 pub struct PlayerRelationships {
-    pub placed_roads: HSparseAdjacencyList<Player, RoadID>,
-    pub towns: HSparseAdjacencyList<Player, SettlePlaceID>,
-    pub settlements: HSparseAdjacencyList<Player, SettlePlaceID>,
-    pub hand: SingleAdjacencyList<Player, PlayerHand>,
+    pub placed_roads: AdjacencyList<Player, Vec<RoadID>>,
+    pub towns: AdjacencyList<Player, Vec<SettlePlaceID>>,
+    pub settlements: AdjacencyList<Player, Vec<SettlePlaceID>>,
+    pub hand: AdjacencyList<Player, PlayerHand>,
 }
 
 #[derive(Debug, Default)]
 pub struct SettlePlaceRelationships {
-    pub roads: CappedAdjacencyList<SettlePlaceID, RoadID, 3>,
+    pub roads: AdjacencyList<SettlePlaceID, ArrayVec<RoadID, 3>>,
     // pub tiles: CappedAdjacencyList<TileID, 2, 3>
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct DiceMarkerRelationships {
-    pub values: SingleAdjacencyList<DiceMarkerID, DiceMarker>,
-    pub place: SingleAdjacencyList<DiceMarkerID, ResourceTileID>,
+    pub values: AdjacencyList<DiceMarkerID, DiceMarker>,
+    pub place: AdjacencyList<DiceMarkerID, ResourceTileID>,
 }
 
 #[derive(Debug, Default)]

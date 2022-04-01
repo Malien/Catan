@@ -82,6 +82,17 @@ impl HexSide {
             SouthEast => NorthWest,
         }
     }
+
+    pub fn connected_vertices(self) -> [HexVertex; 2] {
+        match self {
+            HexSide::NorthWest => [HexVertex::NorthWest, HexVertex::North],
+            HexSide::NorthEast => [HexVertex::North, HexVertex::NorthEast],
+            HexSide::East => [HexVertex::NorthEast, HexVertex::SouthEast],
+            HexSide::SouthEast => [HexVertex::SouthEast, HexVertex::South],
+            HexSide::SouthWest => [HexVertex::South, HexVertex::SouthWest],
+            HexSide::West => [HexVertex::SouthWest, HexVertex::NorthWest],
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Enum)]

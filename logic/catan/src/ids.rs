@@ -25,6 +25,19 @@ pub struct ResourceTileID(pub u8);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RoadID(pub u16);
 
+impl From<RoadID> for usize {
+    fn from(v: RoadID) -> Self {
+        v.0 as usize
+    }
+}
+
+impl TryFrom<usize> for RoadID {
+    type Error = TryFromIntError;
+
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        value.try_into().map(RoadID)
+    }
+}
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SettlePlaceID(pub u16);
 
