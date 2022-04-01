@@ -104,7 +104,8 @@ fn traverse_tiles(
     let mut processed_tiles = HashSet::new();
     let mut settle_places_count = 0;
     let mut placed_roads_count = 0;
-    let mut tile_settle_places = SingleAdjacencyList::<_, EnumMap<_, _>>::new();
+    let mut tile_settle_places =
+        SingleAdjacencyList::<TileID, EnumMap<HexVertex, SettlePlaceID>>::new();
     let mut tile_roads = SingleAdjacencyList::<TileID, EnumMap<HexSide, RoadID>>::new();
 
     while let Some((tile_id, pos)) = queue.pop_front() {
@@ -121,10 +122,10 @@ fn traverse_tiles(
 
         let settle_places =
             settle_places_lookup().map(|_, [(a_side, a_vert), (b_side, b_vert)]| {
-                if let Processed(id) = neighbor_status[a_side] {
-                    tile_settle_places[id][a_vert]
-                } else if let Processed(id) = neighbor_status[b_side] {
-                    tile_settle_places[id][b_vert]
+                if let Processed(neighbor_id) = neighbor_status[a_side] {
+                    tile_settle_places[neighbor_id][a_vert]
+                } else if let Processed(neighbor_id) = neighbor_status[b_side] {
+                    tile_settle_places[neighbor_id][b_vert]
                 } else {
                     alloc_settle_place(&mut settle_places_count)
                 }
@@ -255,7 +256,8 @@ mod test {
     use enum_map::enum_map;
 
     use crate::{
-        decode_config, HexVertex, MapConfig, SettlePlaceID, SingleAdjacencyList, Tile, TileMap, ids::RoadID, types::HexSide,
+        decode_config, ids::RoadID, types::HexSide, HexVertex, MapConfig, SettlePlaceID,
+        SingleAdjacencyList, Tile, TileMap,
     };
 
     #[test]
@@ -294,24 +296,22 @@ mod test {
 
         assert_eq!(
             res.tile.roads,
-            SingleAdjacencyList::from_vec(vec![
-                enum_map!{
-                    HexSide::NorthWest => RoadID(0),
-                    HexSide::NorthEast => RoadID(1), 
-                    HexSide::West => RoadID(2),
-                    HexSide::East => RoadID(3),
-                    HexSide::SouthWest => RoadID(4),
-                    HexSide::SouthEast => RoadID(5)
-                }, 
-            ])
+            SingleAdjacencyList::from_vec(vec![enum_map! {
+                HexSide::NorthWest => RoadID(0),
+                HexSide::NorthEast => RoadID(1),
+                HexSide::West => RoadID(2),
+                HexSide::East => RoadID(3),
+                HexSide::SouthWest => RoadID(4),
+                HexSide::SouthEast => RoadID(5)
+            },])
         )
     }
 
     #[test]
-    fn decode_tree_tile_map() {
+    fn decode_three_tile_map() {
         let config = MapConfig {
             tile_bank: TileMap {
-                desert: 1,
+                desert: 3,
                 ..Default::default()
             },
             map_size: [4, 4],
@@ -362,14 +362,14 @@ mod test {
         assert_eq!(
             res.tile.roads,
             SingleAdjacencyList::from_vec(vec![
-                enum_map!{
+                enum_map! {
                     HexSide::NorthWest => RoadID(0),
-                    HexSide::NorthEast => RoadID(1), 
+                    HexSide::NorthEast => RoadID(1),
                     HexSide::West => RoadID(2),
                     HexSide::East => RoadID(3),
                     HexSide::SouthWest => RoadID(4),
                     HexSide::SouthEast => RoadID(5)
-                }, 
+                },
                 enum_map! {
                     HexSide::NorthWest => RoadID(6),
                     HexSide::NorthEast => RoadID(7),
@@ -377,7 +377,7 @@ mod test {
                     HexSide::East => RoadID(8),
                     HexSide::SouthWest => RoadID(9),
                     HexSide::SouthEast => RoadID(10)
-                }, 
+                },
                 enum_map! {
                     HexSide::NorthWest => RoadID(5),
                     HexSide::NorthEast => RoadID(9),
